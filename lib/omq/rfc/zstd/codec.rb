@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "rzstd"
 require_relative "constants"
 
 module OMQ
@@ -42,12 +43,20 @@ module OMQ
         # Receiver rule (RFC 6.5). Returns the plaintext bytes for the user,
         # or raises on protocol violation.
         #
+        # The +budget_remaining+ argument, when non-nil, is the running
+        # remainder of +max_message_size+ left for the current multipart
+        # message. The RFC-mandated header checks (Frame_Content_Size
+        # present; declared size ≤ budget) happen inside the Rust
+        # extension in a single call that either returns the plaintext
+        # or raises before any decoder allocation.
+        #
         # @param body [String] wire frame body bytes
         # @param compression [OMQ::RFC::Zstd::Compression] the negotiated
         #   recv-direction compression object, or nil if no profile is active
-        # @param max_message_size [Integer, nil] socket's max_message_size
-        # @return [String] plaintext bytes (binary)
-        def decode_part(body, compression, max_message_size: nil)
+        # @param budget_remaining [Integer, nil] remaining decompressed-byte
+        #   budget for this multipart message; nil disables the cap
+        # @return [String] plaintext bytes
+        def decode_part(body, compression, budget_remaining: nil)
           return body if compression.nil?
 
           if body.bytesize < SENTINEL_SIZE
@@ -58,15 +67,30 @@ module OMQ
 
           case sentinel
           when SENTINEL_UNCOMPRESSED
-            body.byteslice(SENTINEL_SIZE, body.bytesize - SENTINEL_SIZE)
+            plaintext = body.byteslice(SENTINEL_SIZE, body.bytesize - SENTINEL_SIZE)
+            enforce_budget!(plaintext.bytesize, budget_remaining)
+            plaintext
           when SENTINEL_ZSTD_FRAME
-            # Zstd frame magic IS the first 4 bytes of the body. Pass the
-            # entire body (including the magic) to the decompressor.
-            compression.decompress(body, max_message_size: max_message_size)
+            begin
+              compression.decompress(body, max_output_size: budget_remaining)
+            rescue RZstd::MissingContentSizeError => e
+              raise MissingContentSizeError, "ZMTP-Zstd: missing content size: #{e.message}"
+            rescue RZstd::OutputSizeLimitError => e
+              raise DecompressedSizeExceedsMaxError,
+                    "ZMTP-Zstd: decompressed message size exceeds maximum: #{e.message}"
+            end
           else
             raise UnknownSentinelError,
                   "ZMTP-Zstd: unknown sentinel #{sentinel.unpack1('H*')}"
           end
+        end
+
+
+        def enforce_budget!(size, budget_remaining)
+          return if budget_remaining.nil?
+          return if size <= budget_remaining
+          raise DecompressedSizeExceedsMaxError,
+                "ZMTP-Zstd: decompressed message size exceeds maximum"
         end
       end
     end

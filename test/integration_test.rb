@@ -112,6 +112,34 @@ class IntegrationTest < Minitest::Test
   end
 
 
+  # RFC Sec. 6.5: a compressed frame whose declared content size
+  # exceeds the receiver's max_message_size must cause the connection
+  # to drop without invoking the decoder.
+  #
+  def test_byte_bomb_drops_connection
+    Sync do
+      push = OMQ::PUSH.new
+      pull = OMQ::PULL.new
+      push.compression       = OMQ::RFC::Zstd::Compression.none
+      pull.compression       = OMQ::RFC::Zstd::Compression.none
+      pull.max_message_size  = 4096
+      pull.read_timeout      = 0.5
+
+      pull.bind("tcp://127.0.0.1:0")
+      push.connect(pull.last_endpoint)
+
+      # 1 MiB of 'A' compresses to a few hundred bytes but declares
+      # 1_048_576 in Frame_Content_Size — well past pull's 4096 cap.
+      push << ["A" * 1_048_576]
+
+      assert_raises(IO::TimeoutError) { pull.receive }
+    ensure
+      push&.close
+      pull&.close
+    end
+  end
+
+
   def test_round_trip_with_static_dictionary
     dict = ("lorem ipsum dolor sit amet " * 20).b
     Sync do

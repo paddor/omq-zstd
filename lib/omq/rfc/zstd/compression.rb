@@ -111,11 +111,16 @@ module OMQ
           end
         end
 
-        def decompress(compressed, max_message_size: nil)
+        # Bounded single-shot decompression. The `max_output_size:` cap is
+        # enforced inside the Rust extension: the frame's Frame_Content_Size
+        # header is read first, and MissingContentSizeError /
+        # OutputSizeLimitError are raised before allocating the output
+        # buffer or invoking the decoder.
+        def decompress(compressed, max_output_size: nil)
           if @recv_dictionary
-            @recv_dictionary.decompress(compressed)
+            @recv_dictionary.decompress(compressed, max_output_size: max_output_size)
           else
-            RZstd.decompress(compressed)
+            RZstd.decompress(compressed, max_output_size: max_output_size)
           end
         end
 
@@ -158,7 +163,9 @@ module OMQ
 
 
         # Feeds a plaintext sample into the auto-training buffer. No-op
-        # for non-auto modes or after training has finished. Triggers
+        # for non-auto modes, after training has finished, or for parts
+        # >= AUTO_DICT_MAX_SAMPLE_LEN (large frames dilute the dict and
+        # blow the sample budget on a handful of messages). Triggers
         # training synchronously when the sample-count or sample-bytes
         # threshold is reached.
         #
@@ -170,6 +177,7 @@ module OMQ
         def add_sample(plaintext)
           return unless @mode == :dict_auto
           return if @training_done
+          return if plaintext.bytesize >= AUTO_DICT_MAX_SAMPLE_LEN
 
           @training_mutex.synchronize do
             return if @training_done
