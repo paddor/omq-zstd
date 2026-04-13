@@ -172,7 +172,7 @@ module OMQ
           end
 
           encoded = parts.map { |p| Codec.encode_part(p, @send_compression) }
-          @last_wire_size_out = encoded.sum(&:bytesize)
+          @last_wire_size_out = encoded.sum { |p| p.bytesize }
           encoded
         end
 
@@ -186,7 +186,7 @@ module OMQ
 
         def decode_parts(parts)
           return parts if @recv_compression.nil?
-          @last_wire_size_in = parts.sum(&:bytesize)
+          @last_wire_size_in = parts.sum { |p| p.bytesize }
           budget_remaining = @max_message_size
           parts.map do |p|
             plaintext = Codec.decode_part(p, @recv_compression, budget_remaining: budget_remaining)
