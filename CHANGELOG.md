@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `CompressionConnection#encode_parts` no longer does per-message
+  `respond_to?(:auto?)` + `auto?` + `trained?` polymorphic dispatch
+  on the send hot path. The "is this an auto-training compression
+  that still needs samples?" check is cached at construction as
+  `@auto_sampling` and flipped false the moment training completes,
+  so after training the entire branch is a single instance-var read.
+
 ## v0.1.1
 
 - New version tag

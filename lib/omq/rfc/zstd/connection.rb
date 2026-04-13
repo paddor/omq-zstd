@@ -52,6 +52,11 @@ module OMQ
           @dict_sent        = false
           @last_wire_size_out = nil
           @last_wire_size_in  = nil
+
+          # Cached once: is the send side an auto-training compression
+          # that still needs samples? Flipped false the moment training
+          # completes, so #encode_parts drops the per-message branch.
+          @auto_sampling = send_compression.is_a?(Compression) && send_compression.auto?
         end
 
 
@@ -143,9 +148,15 @@ module OMQ
 
         def encode_parts(parts)
           return parts if @send_compression.nil?
-          if @send_compression.respond_to?(:auto?) && @send_compression.auto? && !@send_compression.trained?
-            parts.each { |p| @send_compression.add_sample(p) }
+
+          if @auto_sampling
+            if @send_compression.trained?
+              @auto_sampling = false
+            else
+              parts.each { |p| @send_compression.add_sample(p) }
+            end
           end
+
           encoded = parts.map { |p| Codec.encode_part(p, @send_compression) }
           @last_wire_size_out = encoded.sum(&:bytesize)
           encoded
