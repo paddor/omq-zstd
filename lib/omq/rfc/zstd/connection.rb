@@ -70,13 +70,18 @@ module OMQ
         attr_reader :last_wire_size_in
 
 
-        # Disables fan-out byte-sharing. See class docs.
+        # Hides +#write_wire+ from callers so
+        # +OMQ::Routing::FanOut+ falls back to per-connection
+        # +write_message+ -- see class docs for the rationale.
         def respond_to?(name, include_private = false)
           return false if name == :write_wire
           super
         end
 
 
+        # Compresses +parts+ and forwards the encoded payload through
+        # the underlying connection's synchronous send path (acquires
+        # the write mutex and flushes).
         def send_message(parts)
           encoded = encode_parts(parts)
           ship_auto_dict_if_ready
@@ -84,6 +89,9 @@ module OMQ
         end
 
 
+        # Compresses +parts+ and forwards to the underlying
+        # +#write_message+ (writes to the buffer without flushing --
+        # the send pump batches and flushes at the end of the cycle).
         def write_message(parts)
           encoded = encode_parts(parts)
           ship_auto_dict_if_ready
@@ -91,6 +99,9 @@ module OMQ
         end
 
 
+        # Compresses each message in +messages+ and forwards the
+        # batch to the underlying +#write_messages+. Used by the
+        # send pump's batched-flush path.
         def write_messages(messages)
           encoded = messages.map { |parts| encode_parts(parts) }
           ship_auto_dict_if_ready
@@ -98,6 +109,9 @@ module OMQ
         end
 
 
+        # Reads one message via the underlying connection, intercepts
+        # ZMTP-Zstd command frames (e.g. ZDICT) via the frame block,
+        # and returns the decoded plaintext parts.
         def receive_message
           parts = super do |frame|
             handle_command_frame(frame)
