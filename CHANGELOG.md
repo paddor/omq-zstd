@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.1.1
+
+- New version tag
+
+## v0.1.0
 
 Initial release.
 
