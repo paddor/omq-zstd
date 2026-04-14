@@ -89,9 +89,11 @@ module OMQ
         def enforce_budget!(size, budget_remaining)
           return if budget_remaining.nil?
           return if size <= budget_remaining
+
           raise DecompressedSizeExceedsMaxError,
-                "ZMTP-Zstd: decompressed message size exceeds maximum"
+            "ZMTP-Zstd: decompressed message size exceeds maximum"
         end
+
       end
     end
   end

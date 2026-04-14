@@ -41,22 +41,24 @@ module OMQ
       class Compression
         attr_reader :sentinel, :profile, :level, :mode, :send_dict_bytes
 
+
         def self.none(level: DEFAULT_LEVEL, passive: false)
-          new(mode: :none, dictionary: nil, level: level, passive: passive)
+          new mode: :none, dictionary: nil, level: level, passive: passive
         end
+
 
         def self.with_dictionary(bytes, inline: false, level: DEFAULT_LEVEL, passive: false)
-          new(
-            mode: inline ? :dict_inline : :dict_static,
+          new mode: inline ? :dict_inline : :dict_static,
             dictionary: bytes,
-            level: level,
-            passive: passive,
-          )
+            level:      level,
+            passive:    passive
         end
 
+
         def self.auto(level: DEFAULT_LEVEL, passive: false)
-          new(mode: :dict_auto, dictionary: nil, level: level, passive: passive)
+          new mode: :dict_auto, dictionary: nil, level: level, passive: passive
         end
+
 
         # When +passive: true+, the socket advertises the profile and
         # decodes incoming compressed frames, but never compresses
@@ -99,13 +101,16 @@ module OMQ
           end
         end
 
+
         def has_send_dictionary?
           !@send_dictionary.nil?
         end
 
+
         def has_recv_dictionary?
           !@recv_dictionary.nil?
         end
+
 
         # True if this side was configured as a passive sender
         # (RFC Sec. 6.4 "Passive senders"): advertise the profile and
@@ -117,10 +122,12 @@ module OMQ
           @passive == true
         end
 
+
         def min_compress_bytes
           return Float::INFINITY if passive?
           has_send_dictionary? ? MIN_COMPRESS_BYTES_DICT : MIN_COMPRESS_BYTES_NO_DICT
         end
+
 
         def compress(plaintext)
           if @send_dictionary
@@ -129,6 +136,7 @@ module OMQ
             RZstd.compress(plaintext, level: @level)
           end
         end
+
 
         # Bounded single-shot decompression. The `max_output_size:` cap is
         # enforced inside the Rust extension: the frame's Frame_Content_Size
@@ -143,6 +151,7 @@ module OMQ
           end
         end
 
+
         # Match this compression's advertised profile against a peer's
         # X-Compression property value (comma-separated profile list).
         # Returns the matched profile string, or nil for no match.
@@ -152,6 +161,7 @@ module OMQ
           peer_profiles.include?(@profile) ? @profile : nil
         end
 
+
         # Install a dictionary into the send slot. Used internally by
         # auto-mode after training: the trained dict is installed here
         # and the bytes stashed for shipping via ZDICT.
@@ -159,6 +169,7 @@ module OMQ
           @send_dict_bytes = bytes.b
           @send_dictionary = RZstd::Dictionary.new(@send_dict_bytes, level: @level)
         end
+
 
         # Install a dictionary into the recv slot. Called by the
         # CompressionConnection wrapper when a ZDICT command frame
@@ -214,7 +225,9 @@ module OMQ
           end
         end
 
+
         private
+
 
         def maybe_train!
           return unless @samples_count >= AUTO_DICT_SAMPLE_COUNT ||
@@ -232,6 +245,7 @@ module OMQ
             @samples       = nil
           end
         end
+
       end
     end
   end

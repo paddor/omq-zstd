@@ -6,13 +6,18 @@ require_relative "constants"
 module OMQ
   module RFC
     module Zstd
+
       # Prepended onto OMQ::Options to add a +compression+ attribute.
-      # Mirrors the pattern used by omq-transport-tls for +tls_context+.
       #
       # Setting +compression+ also publishes the profile string on the
       # mechanism's metadata so the ZMTP READY command advertises
       # +X-Compression+ to the peer during handshake.
+      #
       module OptionsExt
+
+        attr_reader :compression
+
+
         def initialize(**kwargs)
           super
           @compression = nil
@@ -33,8 +38,6 @@ module OMQ
           mech.metadata[PROPERTY_NAME] = value.profile
         end
 
-
-        attr_reader :compression
       end
     end
   end

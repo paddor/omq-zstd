@@ -7,12 +7,14 @@ require_relative "constants"
 module OMQ
   module RFC
     module Zstd
+
       # Prepended onto OMQ::Engine to install a compression-aware
       # connection wrapper. The wrapper is installed unconditionally
       # at engine init time and inspects +options.compression+ on each
       # call -- the user typically sets +socket.compression =+ AFTER
       # the engine has been constructed, so the closure must look up
       # the compression object lazily.
+      #
       module EngineExt
         def initialize(socket_type, options)
           super
@@ -33,7 +35,9 @@ module OMQ
           end
         end
 
+
         private
+
 
         def matched_profile(conn, compression)
           props = conn.peer_properties
@@ -41,6 +45,7 @@ module OMQ
           peer_value = props[PROPERTY_NAME]
           compression.match(peer_value)
         end
+
       end
     end
   end

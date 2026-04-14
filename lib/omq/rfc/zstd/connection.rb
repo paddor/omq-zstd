@@ -8,6 +8,7 @@ require_relative "constants"
 module OMQ
   module RFC
     module Zstd
+
       # Wraps a Protocol::ZMTP::Connection to transparently apply the
       # ZMTP-Zstd sender/receiver rules (RFC sections 6.4 and 6.5) at
       # the frame-body level.
@@ -25,7 +26,9 @@ module OMQ
       # different profile or dictionary), so the fan-out optimization
       # in +OMQ::Routing::FanOut+ falls back to per-connection
       # +write_message+.
+      #
       class CompressionConnection < SimpleDelegator
+
         # Mixed-in so +is_a?+ against Protocol::ZMTP::Connection still
         # matches the wrapped instance.
         module TransparentDelegator
@@ -35,7 +38,9 @@ module OMQ
           alias_method :kind_of?, :is_a?
         end
 
+
         include TransparentDelegator
+
 
         # @param conn [Protocol::ZMTP::Connection] underlying connection
         # @param send_compression [OMQ::RFC::Zstd::Compression, nil]
@@ -126,14 +131,21 @@ module OMQ
         def send_initial_dict!
           return if @dict_sent
           return unless @send_compression
+
           # RFC Sec. 6.4: a passive sender MUST NOT emit a ZDICT frame.
-          return if @send_compression.respond_to?(:passive?) && @send_compression.passive?
+          if @send_compression.respond_to?(:passive?) && @send_compression.passive?
+            return
+          end
+
           bytes = @send_compression.send_dict_bytes
           return unless bytes
+
           if bytes.bytesize > DICT_FRAME_MAX_SIZE
             raise Error, "ZMTP-Zstd: dictionary exceeds DICT_FRAME_MAX_SIZE (#{bytes.bytesize} > #{DICT_FRAME_MAX_SIZE})"
           end
+
           __getobj__.send_command(Protocol::ZMTP::Codec::Command.new("ZDICT", bytes))
+
           @dict_sent = true
           @engine&.emit_verbose_monitor_event(:zdict_sent, size: bytes.bytesize)
         end
@@ -143,6 +155,7 @@ module OMQ
 
         def handle_command_frame(frame)
           cmd = Protocol::ZMTP::Codec::Command.from_body(frame.body)
+
           case cmd.name
           when "ZDICT"
             install_received_dict(cmd.data)
@@ -152,9 +165,11 @@ module OMQ
 
         def install_received_dict(bytes)
           return unless @recv_compression
+
           if bytes.bytesize > DICT_FRAME_MAX_SIZE
             raise Error, "ZMTP-Zstd: received DICT exceeds DICT_FRAME_MAX_SIZE"
           end
+
           @recv_compression.install_recv_dictionary(bytes)
           @engine&.emit_verbose_monitor_event(:zdict_received, size: bytes.bytesize)
         end
@@ -194,6 +209,7 @@ module OMQ
             plaintext
           end
         end
+
       end
     end
   end
