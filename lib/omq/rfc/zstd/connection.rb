@@ -120,7 +120,7 @@ module OMQ
         end
 
 
-        # Sends the DICT command frame if the send-side compression has
+        # Sends the ZDICT command frame if the send-side compression has
         # an inline dictionary to ship. Called by EngineExt right after
         # the wrapper is constructed, before the recv pump starts.
         def send_initial_dict!

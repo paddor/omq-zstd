@@ -20,7 +20,7 @@ See [RFC.md](RFC.md) for the full specification.
 - **Backwards compatible**: a peer that does not advertise compression is served plaintext. libzmq and other ZMTP 3.1 peers remain interoperable.
 - **Small-message friendly**: an optional shared dictionary makes compression useful even for messages in the dozens-to-hundreds-of-bytes range. Without a dictionary, the sender skips compression for frames below 512 B.
 - **Pay-per-frame**: the sender MAY skip compression on a per-frame basis. Short or incompressible frames are sent plaintext.
-- **Zero-config option**: `dict:auto` trains a dictionary from the first 1000 messages (or 100 KiB, whichever hits first) and ships it via the `DICT` command frame.
+- **Zero-config option**: `dict:auto` trains a dictionary from the first 1000 messages (or 100 KiB, whichever hits first) and ships it via the `ZDICT` command frame.
 
 ## Non-goals
 
