@@ -56,20 +56,23 @@ puts "rzstd v#{RZstd::VERSION rescue "?"}"
 puts "#{ITERS} iterations per cell, dict=#{DICT_BYTES.bytesize} B"
 puts "-" * 100
 
+no_dict_codecs = LEVELS.to_h { |lvl| [lvl, RZstd::FrameCodec.new(level: lvl)] }
+dict_codecs    = LEVELS.to_h { |lvl| [lvl, RZstd::FrameCodec.new(dict: DICT_BYTES, level: lvl)] }
+
 SIZES.each do |size|
   pt = payload_of(size)
   puts
   puts "Payload: #{size} bytes"
 
   LEVELS.each do |lvl|
-    row = bench(pt) { |op, d| op == :compress ? RZstd.compress(d, level: lvl) : RZstd.decompress(d) }
+    codec = no_dict_codecs[lvl]
+    row   = bench(pt) { |op, d| op == :compress ? codec.compress(d) : codec.decompress(d) }
     puts fmt("Zstd L#{lvl.to_s.rjust(3)} (no dict)", row)
   end
 
-  zstd_dicts = LEVELS.to_h { |lvl| [lvl, RZstd::Dictionary.new(DICT_BYTES, level: lvl)] }
   LEVELS.each do |lvl|
-    dict = zstd_dicts[lvl]
-    row  = bench(pt) { |op, d| op == :compress ? dict.compress(d) : dict.decompress(d) }
+    codec = dict_codecs[lvl]
+    row   = bench(pt) { |op, d| op == :compress ? codec.compress(d) : codec.decompress(d) }
     puts fmt("Zstd L#{lvl.to_s.rjust(3)} + dict", row)
   end
 end

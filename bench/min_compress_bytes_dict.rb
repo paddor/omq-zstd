@@ -49,8 +49,9 @@ CORPUS = [
 # Train an auto dict from the corpus at DEFAULT_LEVEL (-3). Use enough
 # samples that rzstd's trainer has something to work with.
 SAMPLES = (CORPUS * 200).map(&:b)
-DICT_BYTES = RZstd::Dictionary.train(SAMPLES, capacity: 4096)
-DICT = RZstd::Dictionary.new(DICT_BYTES, level: OMQ::Compression::Zstd::DEFAULT_LEVEL)
+DICT_OBJ        = RZstd::Dictionary.train(SAMPLES, capacity: 4096)
+DICT_BYTES      = DICT_OBJ.bytes
+DICT            = RZstd::FrameCodec.new(dict: DICT_OBJ, level: OMQ::Compression::Zstd::DEFAULT_LEVEL)
 DICT_BYTES_SIZE = DICT_BYTES.bytesize
 
 SENTINEL = OMQ::Compression::Zstd::SENTINEL_UNCOMPRESSED

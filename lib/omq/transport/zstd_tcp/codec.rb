@@ -26,7 +26,12 @@ module OMQ
           @level            = level
           @max_message_size = max_message_size
 
-          @send_dict       = nil
+          # Start with a no-dict FrameCodec. Once a dict is configured
+          # (either via the `dict:` kwarg or via auto-training), this is
+          # replaced with a fresh dict-bound FrameCodec — per rzstd 0.4,
+          # dict is a permanent property of the codec, so swapping dicts
+          # means constructing a new one.
+          @send_codec      = RZstd::FrameCodec.new(level: @level)
           @send_dict_bytes = nil
 
           @training      = dict.nil?
@@ -108,7 +113,7 @@ module OMQ
           @training = false
           @train_samples = nil
 
-          patched = patch_auto_dict_id(trained)
+          patched = patch_auto_dict_id(trained.bytes)
           install_send_dict(patched)
         end
 
@@ -130,22 +135,20 @@ module OMQ
             raise ProtocolError, "dict exceeds #{MAX_DICT_SIZE} bytes"
           end
 
-          @send_dict       = RZstd::Dictionary.new(bytes, level: @level)
+          # Replace the no-dict send codec with a fresh dict-bound one;
+          # the old codec is GC'd. rzstd 0.4 treats dict as a permanent
+          # codec property, so install-time is always a fresh build.
+          @send_codec      = RZstd::FrameCodec.new(dict: bytes, level: @level)
           @send_dict_bytes = bytes
         end
 
 
         def compress_or_plain(part)
           bytes = part.is_a?(String) && part.encoding == Encoding::BINARY ? part : part.to_s.b
-          threshold = @send_dict ? MIN_COMPRESS_WITH_DICT : MIN_COMPRESS_NO_DICT
+          threshold = @send_dict_bytes ? MIN_COMPRESS_WITH_DICT : MIN_COMPRESS_NO_DICT
           return plain(bytes) if bytes.bytesize < threshold
 
-          compressed =
-            if @send_dict
-              @send_dict.compress(bytes)
-            else
-              RZstd.compress(bytes, level: @level)
-            end
+          compressed = @send_codec.compress(bytes)
 
           return plain(bytes) if compressed.bytesize >= bytes.bytesize - 4
 

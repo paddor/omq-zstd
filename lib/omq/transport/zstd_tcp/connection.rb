@@ -15,7 +15,13 @@ module OMQ
           super(conn)
           @codec              = codec
           @dict_shipped       = false
-          @recv_dict          = nil
+          # rzstd 0.4: FrameCodec is the decoder. Starts no-dict; when a
+          # dict shipment arrives on this direction, we build a fresh
+          # dict-bound FrameCodec and replace this one. Level is a
+          # compression parameter only — not consulted on decompress —
+          # so we don't carry the send-side level through to recv.
+          @recv_codec         = RZstd::FrameCodec.new
+          @recv_dict_bytes    = nil
           @last_wire_size_in  = nil
         end
 
@@ -122,11 +128,7 @@ module OMQ
 
           decompress_opts = budget ? { max_output_size: budget } : {}
 
-          if @recv_dict
-            @recv_dict.decompress(wire, **decompress_opts)
-          else
-            RZstd.decompress(wire, **decompress_opts)
-          end
+          @recv_codec.decompress(wire, **decompress_opts)
         rescue RZstd::DecompressError => e
           raise ProtocolError, "decompression failed: #{e.message}"
         rescue RZstd::MissingContentSizeError => e
@@ -145,7 +147,11 @@ module OMQ
             raise ProtocolError, "dict exceeds #{Codec::MAX_DICT_SIZE} bytes"
           end
 
-          @recv_dict = RZstd::Dictionary.new(wire.b)
+          # Replace the no-dict recv codec with a fresh dict-bound one;
+          # the old codec is GC'd (rzstd 0.4: dict is a permanent codec
+          # property).
+          @recv_codec      = RZstd::FrameCodec.new(dict: wire.b)
+          @recv_dict_bytes = wire.b
         end
 
 
