@@ -1,3 +1,5 @@
+/.cla*
+/CLA*
 /.bundle/
 /vendor/bundle
 /Gemfile.lock
